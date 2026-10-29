@@ -64,7 +64,7 @@ function loadState() { return emptyState(); }
 function saveState() {
   try { localStorage.setItem("budget_tab", STATE.activeTab); localStorage.setItem("budget_filter", STATE.expenseFilter); } catch (e) {}
   if (!sb || !DB_LOADED) return;
-  updateDbBadge("ðŸŸ¡ Savingâ€¦");
+  updateDbBadge("🟡 Saving…");
   clearTimeout(saveTimer);
   saveTimer = setTimeout(syncToDb, 800);
 }
@@ -103,10 +103,10 @@ async function syncToDb() {
         LAST[field][it.id] = row;
       }
     }
-    updateDbBadge("ðŸŸ¢ Saved to cloud " + new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }), true);
+    updateDbBadge("🟢 Saved to cloud " + new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }), true);
   } catch (e) {
-    updateDbBadge("ðŸ”´ Not saved: " + e.message, false);
-    alert("Could not save to the cloud:\n" + e.message + "\n\nTip: press â†» Reload to see what is saved.");
+    updateDbBadge("🔴 Not saved: " + e.message, false);
+    alert("Could not save to the cloud:\n" + e.message + "\n\nTip: press ↻ Reload to see what is saved.");
   } finally {
     saving = false;
     if (saveAgain) { saveAgain = false; syncToDb(); }
@@ -115,7 +115,7 @@ async function syncToDb() {
 
 let DB_LOADED = false;
 async function loadFromDb() {
-  updateDbBadge("ðŸŸ¡ Loadingâ€¦");
+  updateDbBadge("🟡 Loading…");
   const s = check(await sb.from("budget_settings").select("key,value"), "Loading settings");
   SETTINGS = Object.fromEntries(s.map(r => [r.key, r.value]));
   const st = emptyState();
@@ -134,7 +134,7 @@ async function loadFromDb() {
   buildQuickJump();
   DB_LOADED = true;
   renderAll();
-  updateDbBadge("ðŸŸ¢ Cloud database connected", true);
+  updateDbBadge("🟢 Cloud database connected", true);
 }
 
 // Payment-portal cards: made from the url of every bill and card (no amounts stored in the site code)
@@ -166,7 +166,7 @@ function buildQuickJump() {
 
 // "Reset" button became "Reload from database"
 async function resetDefaults() {
-  try { await loadFromDb(); } catch (e) { updateDbBadge("ðŸ”´ " + e.message, false); }
+  try { await loadFromDb(); } catch (e) { updateDbBadge("🔴 " + e.message, false); }
 }
 function shutdownApp() { signOut(); }
 
@@ -174,5 +174,5 @@ async function budgetStart() {
   const session = await requireSession(); if (!session) return;
   const who = document.getElementById("whoAmI"); if (who) who.textContent = session.user.email;
   try { await loadFromDb(); }
-  catch (e) { updateDbBadge("ðŸ”´ " + e.message, false); alert("Could not load your budget:\n" + e.message); }
+  catch (e) { updateDbBadge("🔴 " + e.message, false); alert("Could not load your budget:\n" + e.message); }
 }
