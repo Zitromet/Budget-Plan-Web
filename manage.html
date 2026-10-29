@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<!-- Manage Data - add / edit / delete every row of every budget table -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0d9488" />
+  <title>Budget — Manage Data</title>
+  <link rel="icon" type="image/png" href="budget_icon.png" />
+  <link rel="stylesheet" href="css/base.css" />
+  <link rel="stylesheet" href="css/website.css" />
+</head>
+<body>
+  <div class="page-wrap">
+    <header class="page-header">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <img src="budget_icon.png" alt="" style="width:44px;height:44px;border-radius:10px;" />
+        <div>
+          <h1 class="page-title" style="margin-bottom:0;">Manage Data</h1>
+          <p class="page-summary" style="margin-top:2px;">Add, edit or delete any row. Changes save to the cloud right away.</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <a class="btn btn-primary" href="dashboard.html">📊 Dashboard</a>
+        <span id="whoAmI" class="who"></span>
+        <button class="btn" onclick="signOut()">🚪 Sign out</button>
+      </div>
+    </header>
+    <section class="section-card">
+      <div class="segmented" id="mdTabs"></div>
+      <div class="md-toolbar">
+        <button class="btn btn-primary" id="mdAdd">＋ Add</button>
+        <input type="search" id="mdSearch" placeholder="Search…" />
+        <span id="mdCount" class="who"></span>
+      </div>
+      <p id="mdHelp" class="section-caption"></p>
+      <div class="table-wrap"><table class="md-table" id="mdTable"></table></div>
+    </section>
+  </div>
+  <dialog class="md-dialog" id="mdDialog"><form class="md-form" id="mdForm" method="dialog"></form></dialog>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="config.js"></script>
+  <script src="js/supa.js"></script>
+  <script src="js/manage.js"></script>
+</body>
+</html>
