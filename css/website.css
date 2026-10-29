@@ -1,0 +1,60 @@
+/* website.css - extras for the website (sign-in, Manage Data, phones) */
+.status-danger { background: var(--danger-bg); color: var(--danger-text); border: 1px solid var(--danger-border); }
+.who { font-size: 12px; color: var(--text-muted); align-self: center; }
+.header-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.table-wrap { -webkit-overflow-scrolling: touch; }
+input, select, textarea { font-size: 16px; } /* stops iPhone zooming in */
+@media (max-width: 600px) {
+  .page-header { padding: 14px; }
+  .page-title { font-size: 20px !important; }
+  .toc-bar { display: none; }
+  .header-actions .btn { flex: 1 1 auto; justify-content: center; }
+  .control-bar { flex-direction: column; align-items: stretch !important; }
+  .control-bar .field, .control-bar input, .control-bar select { width: 100% !important; }
+  .link-grid { grid-template-columns: 1fr !important; }
+}
+@media print { .header-actions, .toc-bar { display: none !important; } }
+
+/* sign-in page */
+.login-page { display: flex; min-height: 100vh; align-items: center; justify-content: center; padding: 16px; }
+.login-box { width: 100%; max-width: 380px; text-align: center; }
+.login-logo { width: 64px; height: 64px; border-radius: 14px; margin-bottom: 8px; }
+.login-box h1 { font-size: 22px; margin-bottom: 4px; }
+.login-sub { color: var(--text-secondary); margin-bottom: 16px; font-size: 14px; }
+.login-box form { display: flex; flex-direction: column; gap: 10px; text-align: left; }
+.login-box label { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+.login-box input { width: 100%; padding: 10px; border: 1px solid var(--border-strong); border-radius: 8px; }
+.btn-block { width: 100%; justify-content: center; padding: 11px; }
+.login-msg { margin-top: 12px; font-size: 14px; color: var(--success-text); min-height: 1.4em; }
+.login-msg.error { color: var(--danger-text); }
+.notice { text-align: left; padding: 10px 12px; border-radius: 8px; margin-bottom: 12px; font-size: 13px; }
+.notice-warn { background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn-text); }
+
+/* Manage Data page */
+.md-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.md-table th, .md-table td { border-bottom: 1px solid var(--border); padding: 7px 8px; text-align: left; vertical-align: top; white-space: nowrap; }
+.md-table th { background: var(--bg-subtle); color: var(--text-secondary); font-size: 12px; position: sticky; top: 0; }
+.md-table tr.inactive td { color: var(--text-muted); text-decoration: line-through; }
+.md-table td.num { text-align: right; font-family: var(--font-mono); }
+.md-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; }
+.md-toolbar input[type=search] { flex: 1 1 200px; padding: 8px; border: 1px solid var(--border-strong); border-radius: 8px; }
+dialog.md-dialog { border: none; border-radius: 14px; padding: 0; width: min(560px, 96vw); box-shadow: 0 20px 50px rgba(0,0,0,.25); }
+dialog.md-dialog::backdrop { background: rgba(15,23,42,.45); }
+.md-form { padding: 18px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+.md-form h2 { grid-column: 1 / -1; font-size: 18px; }
+.md-form .f { display: flex; flex-direction: column; gap: 3px; }
+.md-form .f.wide { grid-column: 1 / -1; }
+.md-form label { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.md-form .hint { font-size: 11px; color: var(--text-muted); }
+.md-form input, .md-form select, .md-form textarea { padding: 8px; border: 1px solid var(--border-strong); border-radius: 8px; width: 100%; }
+.md-form .actions { grid-column: 1 / -1; display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.btn-danger { color: var(--danger-text); border-color: var(--danger-border); }
+@media (max-width: 700px) {
+  .md-form { grid-template-columns: 1fr; }
+  .md-table thead { display: none; }
+  .md-table, .md-table tbody, .md-table tr, .md-table td { display: block; width: 100%; }
+  .md-table tr { border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; padding: 6px; background: var(--bg-card); }
+  .md-table td { border: none; padding: 3px 6px; white-space: normal; text-align: left !important; }
+  .md-table td::before { content: attr(data-label) ": "; font-weight: 600; color: var(--text-secondary); font-family: var(--font-sans); }
+  .md-table td.row-actions::before { content: ""; }
+}
