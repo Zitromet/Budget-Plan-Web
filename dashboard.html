@@ -163,9 +163,10 @@
           </select>
         </div>
         <div class="field">
-          <label>Debit Card Available (2025N!O7 $)</label>
+          <label>Available to pay this Friday $</label>
           <input type="number" step="0.01" id="debitBalanceInput" onchange="setDebitBalance(this.value)" />
         </div>
+
         <div class="field">
           <label>CC Payoff Horizon (Years)</label>
           <input type="number" step="0.5" min="0.5" id="ccYearsInput" onchange="setCcYears(this.value)" style="width:90px;" />
@@ -403,14 +404,15 @@
         };
       });
 
-      const balanceDiffO11 = (Number(STATE.debitCardBalance) || 0) - fridaySavedI32;
+      const totalAvailable = Number(STATE.debitCardBalance) || 0;
+      const balanceDiffO11 = totalAvailable - fridaySavedI32;
       const weeklyBufferVsNet = netWeekly - fridayWeeklyE32;
 
       return {
         windowEndISO,
         paycheck: { taxesWeekly, dedsWeekly, netWeekly, yearlyGross, monthlyGross13, hourlyGross, yearlyNet, pctTax, pctDed, pctTotal },
         cards: { rows: cardRows, totalBal, totalMonthly, totalDueWk, totalEffectiveWk },
-        expenses: { rows: expRows, budgetMonthlyTotal, budgetWeeklyTotal, budgetYearlyTotal, fridayWeeklyE32, fridaySavedI32, balanceDiffO11, weeklyBufferVsNet }
+        expenses: { rows: expRows, budgetMonthlyTotal, budgetWeeklyTotal, budgetYearlyTotal, fridayWeeklyE32, fridaySavedI32, balanceDiffO11, weeklyBufferVsNet, totalAvailable }
       };
     }
 
@@ -597,7 +599,7 @@
         <div class="metric-card ${calc.expenses.balanceDiffO11 >= 0 ? 'success' : 'danger'}">
           <div class="metric-label">Total Saved Needed by Friday (2025N!I32)</div>
           <div class="metric-value">${fmtMoney(calc.expenses.fridaySavedI32)}</div>
-          <div class="metric-detail">Debit Card ${fmtMoney(STATE.debitCardBalance)} → Balance Diff: ${fmtMoney(calc.expenses.balanceDiffO11)}</div>
+          <div class="metric-detail" id="availFormula">Available ${fmtMoney(calc.expenses.totalAvailable)} − Due before next Friday ${fmtMoney(calc.expenses.fridaySavedI32)} = Left after paying: ${fmtMoney(calc.expenses.balanceDiffO11)}</div>
         </div>
         <div class="metric-card ${calc.expenses.weeklyBufferVsNet >= 0 ? 'success' : 'danger'}">
           <div class="metric-label">Weekly Set-Aside (2025N!E32)</div>
@@ -797,7 +799,7 @@
                   <td>—</td>
                   <td>
                     <span class="status-pill ${calc.expenses.balanceDiffO11 >= 0 ? 'status-success' : 'status-danger'}">
-                      Diff: ${fmtMoney(calc.expenses.balanceDiffO11)}
+                      Left after paying: ${fmtMoney(calc.expenses.balanceDiffO11)}
                     </span>
                   </td>
                 </tr>
@@ -904,7 +906,7 @@
                   <input type="number" step="0.01" value="${STATE.grossWeekly}" onchange="updatePaycheckTop('grossWeekly', this.value)" />
                 </div>
                 <div class="field">
-                  <label>Extra / Adjustment (Budget!I4 $)</label>
+                  <label>Paycheck adjustment $ (changes weekly net pay only — for money on hand use "Extra deposit" at the top)</label>
                   <input type="number" step="0.01" value="${STATE.paycheckExtra}" onchange="updatePaycheckTop('paycheckExtra', this.value)" />
                 </div>
                 <button class="btn btn-sm" onclick="updatePaycheckTop('paycheckExtra', 0)">Preset: Sheet Net ($2,207.07)</button>
