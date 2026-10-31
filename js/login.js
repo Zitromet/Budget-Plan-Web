@@ -15,7 +15,7 @@ document.getElementById("loginForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   if (!sb) return say("Not connected: fill in config.js first.", true);
   const email = document.getElementById("email").value.trim();
-  say("Sending linkâ€¦");
+  say("Sending link…");
   const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo: DASHBOARD_URL } });
   if (error) say("Could not send link: " + error.message, true);
   else say("Check your inbox for the sign-in link (open it in this same browser).");

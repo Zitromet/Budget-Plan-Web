@@ -35,7 +35,7 @@ const T = {
       ["monthly_amount", "Monthly ($)", "money", { nullable: 1 }], ["yearly_amount", "Yearly ($)", "money", { nullable: 1 }],
       ["due_date", "Due date", "date"], ["payoff_date", "Payoff date", "date"], ["url", "Website", "url", { list: 0 }]] },
   settings: { table: "budget_settings", title: "Settings", key: "key", order: ["key"],
-    help: "Numbers and dates the dashboard uses (paycheck, debit balance, Tesla leaseâ€¦). Edit carefully.",
+    help: "Numbers and dates the dashboard uses (paycheck, debit balance, Tesla lease…). Edit carefully.",
     cols: [["key", "Key", "text", { req: 1, keyCol: 1 }], ["value", "Value", "text", { req: 1 }], ["description", "Description", "text"]] },
 };
 let TAB = location.hash.slice(1) in T ? location.hash.slice(1) : "expenses";
@@ -48,7 +48,7 @@ function show(c, v) {
   if (v === null || v === undefined) return "";
   if (type === "money") return money(v);
   if (type === "pct") return (Number(v) * 100).toFixed(2) + "%";
-  if (type === "bool") return v ? "âœ”" : "â€”";
+  if (type === "bool") return v ? "✔" : "—";
   if (type === "url") return `<a href="${esc(v)}" target="_blank" rel="noopener">${esc(v)}</a>`;
   return esc(v);
 }
@@ -74,8 +74,8 @@ function render() {
     `<thead><tr>${cols.map(c => `<th>${c[1]}</th>`).join("")}<th></th></tr></thead><tbody>` +
     rows.map(r => `<tr class="${r.active === false ? "inactive" : ""}">${cols.map(c =>
       `<td data-label="${esc(c[1])}" class="${["money", "pct", "int", "number"].includes(c[2]) ? "num" : ""}">${show(c, r[c[0]])}</td>`).join("")}
-      <td class="row-actions"><button class="btn btn-sm" onclick="edit('${esc(r[keyOf()])}')">âœï¸ Edit</button>
-      <button class="btn btn-sm btn-danger" onclick="del('${esc(r[keyOf()])}')">ðŸ—‘ï¸</button></td></tr>`).join("") + "</tbody>";
+      <td class="row-actions"><button class="btn btn-sm" onclick="edit('${esc(r[keyOf()])}')">✏️ Edit</button>
+      <button class="btn btn-sm btn-danger" onclick="del('${esc(r[keyOf()])}')">🗑️</button></td></tr>`).join("") + "</tbody>";
 }
 function setTab(k) { TAB = k; location.hash = k; document.getElementById("mdSearch").value = ""; load().catch(fail); }
 function fail(e) { alert(e.message); }
@@ -111,8 +111,8 @@ function readForm() {
 }
 function openForm(row) {
   const t = T[TAB], f = document.getElementById("mdForm");
-  f.innerHTML = `<h2>${row ? "Edit" : "Add"} â€” ${t.title}</h2>` + t.cols.map(c => field(c, row ? row[c[0]] : undefined)).join("") +
-    `<div class="actions"><button type="button" class="btn" id="mdCancel">Cancel</button><button type="submit" class="btn btn-primary">ðŸ’¾ Save</button></div>`;
+  f.innerHTML = `<h2>${row ? "Edit" : "Add"} — ${t.title}</h2>` + t.cols.map(c => field(c, row ? row[c[0]] : undefined)).join("") +
+    `<div class="actions"><button type="button" class="btn" id="mdCancel">Cancel</button><button type="submit" class="btn btn-primary">💾 Save</button></div>`;
   const dlg = document.getElementById("mdDialog");
   document.getElementById("mdCancel").onclick = () => dlg.close();
   f.onsubmit = async ev => {
