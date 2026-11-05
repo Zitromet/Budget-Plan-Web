@@ -335,6 +335,7 @@
       return `${sign}$${abs.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     }
 
+    // Yearly subscriptions are not part of STATE, so they are not included here.
     function computeAll() {
       const baseFriDate = parseISODateUTC(STATE.baseFriday);
       const windowEndISO = formatISODateUTC(addDaysUTC(baseFriDate, 6));

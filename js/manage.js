@@ -2,6 +2,7 @@
 // manage.js - Manage Data screen. One tab per budget table.
 // Each column is described once below (label, type, help) and the
 // list + add/edit form are built from that.
+// Yearly Subscriptions math is in yearly-subscriptions.js (load that first).
 // =====================================================================
 const T = {
   expenses: { table: "budget_expenses", title: "Bills & Expenses", order: ["sort_order", "id"],
@@ -34,6 +35,18 @@ const T = {
       ["balance", "Balance ($)", "money", { nullable: 1 }], ["apr", "APR %", "pct", { nullable: 1 }],
       ["monthly_amount", "Monthly ($)", "money", { nullable: 1 }], ["yearly_amount", "Yearly ($)", "money", { nullable: 1 }],
       ["due_date", "Due date", "date"], ["payoff_date", "Payoff date", "date"], ["url", "Website", "url", { list: 0 }]] },
+  // Reference list only. These rows stay out of Friday, weekly, monthly,
+  // and dashboard totals. yearly_amount is dollars per year before tax.
+  subscriptions: { table: "budget_yearly_subscriptions", title: "Yearly Subscriptions",
+    order: [{ col: "renewal_date", ascending: true, nullsFirst: false }, "name"],
+    help: "Information only. Not included in Friday, weekly, monthly, or dashboard totals. Yearly amount is dollars per year before tax; put tax in the note. A past renewal date is kept, but it is not the next charge.",
+    summary: summarizeYearlySubscriptions,
+    pastRow: r => renewalStatus(r.renewal_date, localTodayISO()) === "past",
+    cols: [
+      ["name", "Name", "text", { req: 1 }],
+      ["yearly_amount", "Yearly ($)", "money", { req: 1 }],
+      ["renewal_date", "Renewal date", "date", { markPast: 1 }],
+      ["note", "Note", "textarea", { wrap: 1 }]] },
   settings: { table: "budget_settings", title: "Settings", key: "key", order: ["key"],
     help: "Numbers and dates the dashboard uses (paycheck, debit balance, Tesla lease…). Edit carefully.",
     cols: [["key", "Key", "text", { req: 1, keyCol: 1 }], ["value", "Value", "text", { req: 1 }], ["description", "Description", "text"]] },
@@ -44,12 +57,19 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": 
 const money = v => v === null || v === undefined || v === "" ? "" : Number(v).toLocaleString("en-US", { style: "currency", currency: "USD" });
 
 function show(c, v) {
-  const [, , type] = c;
-  if (v === null || v === undefined) return "";
+  const [, , type, o = {}] = c;
+  if (v === null || v === undefined) return o.markPast ? "—" : "";
   if (type === "money") return money(v);
   if (type === "pct") return (Number(v) * 100).toFixed(2) + "%";
   if (type === "bool") return v ? "✔" : "—";
   if (type === "url") return `<a href="${esc(v)}" target="_blank" rel="noopener">${esc(v)}</a>`;
+  // Renewal dates: a past date stays visible, but it is not an upcoming charge.
+  if (o.markPast && type === "date") {
+    const status = renewalStatus(v, localTodayISO());
+    if (status === "blank") return "—";
+    if (status === "past") return esc(v) + " (past)";
+    if (status === "today") return esc(v) + " (today)";
+  }
   return esc(v);
 }
 const keyOf = () => T[TAB].key || "id";
@@ -57,7 +77,10 @@ const keyOf = () => T[TAB].key || "id";
 async function load() {
   const t = T[TAB];
   let q = sb.from(t.table).select("*");
-  t.order.forEach(o => (q = q.order(o)));
+  // order entries are a column name, or { col, ascending, nullsFirst }
+  t.order.forEach(o => {
+    q = typeof o === "string" ? q.order(o) : q.order(o.col, { ascending: o.ascending, nullsFirst: o.nullsFirst });
+  });
   ROWS = check(await q, "Loading " + t.title);
   render();
 }
@@ -72,10 +95,36 @@ function render() {
   const cols = t.cols.filter(c => (c[3] || {}).list !== 0);
   document.getElementById("mdTable").innerHTML =
     `<thead><tr>${cols.map(c => `<th>${c[1]}</th>`).join("")}<th></th></tr></thead><tbody>` +
-    rows.map(r => `<tr class="${r.active === false ? "inactive" : ""}">${cols.map(c =>
-      `<td data-label="${esc(c[1])}" class="${["money", "pct", "int", "number"].includes(c[2]) ? "num" : ""}">${show(c, r[c[0]])}</td>`).join("")}
+    rows.map(r => `<tr class="${trClass(r)}">${cols.map(c => {
+      const cls = [["money", "pct", "int", "number"].includes(c[2]) ? "num" : "", (c[3] || {}).wrap ? "wrap" : ""].filter(Boolean).join(" ");
+      return `<td data-label="${esc(c[1])}" class="${cls}">${show(c, r[c[0]])}</td>`;
+    }).join("")}
       <td class="row-actions"><button class="btn btn-sm" onclick="edit('${esc(r[keyOf()])}')">✏️ Edit</button>
       <button class="btn btn-sm btn-danger" onclick="del('${esc(r[keyOf()])}')">🗑️</button></td></tr>`).join("") + "</tbody>";
+  renderSummary();
+}
+function trClass(r) {
+  const parts = [];
+  if (r.active === false) parts.push("inactive");
+  if (T[TAB].pastRow && T[TAB].pastRow(r)) parts.push("past-renewal");
+  return parts.join(" ");
+}
+// Annual total and next charge. Other tabs leave this box hidden.
+function renderSummary() {
+  const el = document.getElementById("mdSummary");
+  if (!el) return;
+  const sumFn = T[TAB].summary;
+  if (!sumFn) { el.hidden = true; el.innerHTML = ""; return; }
+  const s = sumFn(ROWS, localTodayISO());
+  const tone = s.status === "upcoming" ? "success" : "warning";
+  el.hidden = false;
+  el.innerHTML =
+    `<div class="metric-card"><div class="metric-label">Annual total</div>
+      <div class="metric-value">${money(s.total)}</div>
+      <div class="metric-detail">${s.count} subscription${s.count === 1 ? "" : "s"}, per year before tax</div></div>
+    <div class="metric-card ${tone}"><div class="metric-label">Next charge</div>
+      <div class="metric-value">${s.next ? money(s.next.amount) : "None"}</div>
+      <div class="metric-detail">${esc(s.detail)}</div></div>`;
 }
 function setTab(k) { TAB = k; location.hash = k; document.getElementById("mdSearch").value = ""; load().catch(fail); }
 function fail(e) { alert(e.message); }
