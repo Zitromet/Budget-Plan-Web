@@ -53,6 +53,9 @@ const TABLES = {
   cards:      { table: "budget_credit_cards",    toRow: cardToRow, fromRow: cardFromRow, activeOnly: true },
   deductions: { table: "budget_deduction_items", toRow: dedToRow,  fromRow: dedFromRow, activeOnly: false },
 };
+// budget_yearly_subscriptions is intentionally not in TABLES.
+// The Manage page shows that list for reference only. It must not
+// feed Friday, weekly, monthly, or dashboard totals.
 
 // ---------- the functions the dashboard calls ----------
 function updateDbBadge(text, isOnline) {
