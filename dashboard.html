@@ -166,6 +166,11 @@
           <label>Available to pay this Friday $</label>
           <input type="number" step="0.01" id="debitBalanceInput" onchange="setDebitBalance(this.value)" />
         </div>
+        <div class="field">
+          <label>Total due this Friday</label>
+          <div id="fridayCashTotal" style="font-family:var(--font-mono);font-weight:800;font-size:16px;">$0.00</div>
+          <div id="fridayCashNote" class="status-pill status-success">Left over: $0.00</div>
+        </div>
 
         <div class="field">
           <label>CC Payoff Horizon (Years)</label>
@@ -212,6 +217,7 @@
   <script src="config.js"></script>
   <script src="js/supa.js"></script>
   <script src="js/budget-data.js"></script>
+  <script src="js/one-time-expense.js"></script>
   <script>
 
     
@@ -369,7 +375,10 @@
       const expRows = STATE.expenses.map(e => {
         const cyc = computeCycleMetrics(STATE.baseFriday, e.dueDay);
         let budgetMonthly = 0, budgetWeekly = 0, budgetYearly = 0, cycleWeekly = 0;
-        if (e.inputMode === "CC_Link" || e.name === "CC") {
+        const oneTime = e.inputMode === "One_Time";
+        if (oneTime) {
+          // Counted only in oneTimeShare for the Friday that owns oneTimeDate.
+        } else if (e.inputMode === "CC_Link" || e.name === "CC") {
           budgetWeekly = totalDueWk;
           budgetYearly = budgetWeekly * 52;
           budgetMonthly = budgetYearly / 12;
@@ -385,12 +394,15 @@
           budgetWeekly = budgetYearly / 52;
           cycleWeekly = e.dueDay === 0 ? budgetWeekly : budgetMonthly / cyc.cycleFridays;
         }
-        const savedTotal = cycleWeekly * cyc.passedFridays + (Number(e.manualAdd) || 0);
-        budgetMonthlyTotal += budgetMonthly;
-        budgetWeeklyTotal += budgetWeekly;
-        budgetYearlyTotal += budgetYearly;
-        fridayWeeklyE32 += cycleWeekly + (Number(e.manualAdd) || 0);
-        fridaySavedI32 += savedTotal;
+        const savedTotal = oneTime ? 0 : cycleWeekly * cyc.passedFridays + (Number(e.manualAdd) || 0);
+        if (!oneTime) {
+          budgetMonthlyTotal += budgetMonthly;
+          budgetWeeklyTotal += budgetWeekly;
+          budgetYearlyTotal += budgetYearly;
+          fridayWeeklyE32 += cycleWeekly + (Number(e.manualAdd) || 0);
+          fridaySavedI32 += savedTotal;
+        }
+        const fridayAmount = oneTimeShare(e, STATE.baseFriday);
         return {
           ...e,
           budgetMonthly,
@@ -399,21 +411,25 @@
           cycleFridays: cyc.cycleFridays,
           cycleWeekly,
           passedFridays: cyc.passedFridays,
-          nextDueISO: cyc.nextDueISO,
+          nextDueISO: oneTime ? (e.oneTimeDate || "") : cyc.nextDueISO,
           savedTotal,
-          isDueThisWeek: cyc.isDueThisWeek
+          fridayAmount,
+          oneTimeStatus: oneTime ? oneTimeLabel(e, STATE.baseFriday) : "",
+          isDueThisWeek: oneTime ? fridayAmount > 0 : cyc.isDueThisWeek
         };
       });
 
       const totalAvailable = Number(STATE.debitCardBalance) || 0;
       const balanceDiffO11 = totalAvailable - fridaySavedI32;
       const weeklyBufferVsNet = netWeekly - fridayWeeklyE32;
+      const totalDue = fridayTotalDue(fridaySavedI32, STATE.expenses, STATE.baseFriday);
+      const cash = compareFridayCash(totalDue, totalAvailable);
 
       return {
         windowEndISO,
         paycheck: { taxesWeekly, dedsWeekly, netWeekly, yearlyGross, monthlyGross13, hourlyGross, yearlyNet, pctTax, pctDed, pctTotal },
         cards: { rows: cardRows, totalBal, totalMonthly, totalDueWk, totalEffectiveWk },
-        expenses: { rows: expRows, budgetMonthlyTotal, budgetWeeklyTotal, budgetYearlyTotal, fridayWeeklyE32, fridaySavedI32, balanceDiffO11, weeklyBufferVsNet, totalAvailable }
+        expenses: { rows: expRows, budgetMonthlyTotal, budgetWeeklyTotal, budgetYearlyTotal, fridayWeeklyE32, fridaySavedI32, balanceDiffO11, weeklyBufferVsNet, totalAvailable, totalDue, cash }
       };
     }
 
@@ -464,11 +480,26 @@
     function updateExpenseField(id, field, rawVal) {
       const item = STATE.expenses.find(x => x.id === id);
       if (!item) return;
-      if (field === "inputMode") item.inputMode = rawVal;
+      if (field === "inputMode") {
+        if (rawVal === "One_Time") {
+          const message = oneTimeError({ mode: "One_Time", amount: item.inputAmount, date: item.oneTimeDate });
+          if (message) { alert(message); renderAll(); return; }
+        }
+        item.inputMode = rawVal;
+      }
       else if (field === "paymentFrom") item.paymentFrom = rawVal;
-      else if (field === "inputAmount") item.inputAmount = parseFloat(rawVal) || 0;
-      else if (field === "dueDay") item.dueDay = Math.min(31, Math.max(0, parseInt(rawVal, 10) || 0));
-      else if (field === "manualAdd") item.manualAdd = parseFloat(rawVal) || 0;
+      else if (field === "inputAmount") {
+        if (item.inputMode === "One_Time") {
+          const message = oneTimeError({ mode: "One_Time", amount: rawVal, date: item.oneTimeDate });
+          if (message) { alert(message); renderAll(); return; }
+        }
+        item.inputAmount = parseFloat(rawVal) || 0;
+      } else if (field === "dueDay") item.dueDay = Math.min(31, Math.max(0, parseInt(rawVal, 10) || 0));
+      else if (field === "oneTimeDate") {
+        const message = oneTimeError({ mode: "One_Time", amount: item.inputAmount, date: rawVal });
+        if (message) { alert(message); renderAll(); return; }
+        item.oneTimeDate = rawVal;
+      } else if (field === "manualAdd") item.manualAdd = parseFloat(rawVal) || 0;
       saveState();
       renderAll();
     }
@@ -479,16 +510,33 @@
       renderAll();
     }
 
+    function toggleNewExpMode(mode) {
+      const one = mode === "One_Time";
+      const day = document.getElementById("newExpDayWrap");
+      const date = document.getElementById("newExpDateWrap");
+      // .field { display:flex } beats the hidden attribute, so toggle display directly.
+      if (day) day.style.display = one ? "none" : "";
+      if (date) date.style.display = one ? "" : "none";
+    }
+
     function addExpense() {
       const name = document.getElementById("newExpName").value.trim();
       if (!name) return;
       const mode = document.getElementById("newExpMode").value;
-      const amt = parseFloat(document.getElementById("newExpAmt").value) || 0;
-      const day = Math.min(31, Math.max(0, parseInt(document.getElementById("newExpDay").value, 10) || 0));
+      const amtRaw = document.getElementById("newExpAmt").value;
       const from = document.getElementById("newExpFrom").value.trim() || "M&T DC";
       const url = document.getElementById("newExpUrl").value.trim() || "https://";
+      let day = Math.min(31, Math.max(0, parseInt(document.getElementById("newExpDay").value, 10) || 0));
+      let oneTimeDate = "";
+      if (mode === "One_Time") {
+        oneTimeDate = document.getElementById("newExpDate").value;
+        const message = oneTimeError({ mode, amount: amtRaw, date: oneTimeDate });
+        if (message) { alert(message); return; }
+        day = 0;
+      }
+      const amt = parseFloat(amtRaw) || 0;
       const nextId = STATE.expenses.reduce((m, x) => Math.max(m, x.id), 0) + 1;
-      STATE.expenses.push({ id: nextId, name, inputMode: mode, inputAmount: amt, dueDay: day, manualAdd: 0, paymentFrom: from, payoffDate: "", url });
+      STATE.expenses.push({ id: nextId, name, inputMode: mode, inputAmount: amt, dueDay: day, manualAdd: 0, paymentFrom: from, payoffDate: "", url, oneTimeDate });
       saveState();
       renderAll();
     }
@@ -586,21 +634,30 @@
       }
       document.getElementById("debitBalanceInput").value = STATE.debitCardBalance;
       document.getElementById("ccYearsInput").value = STATE.ccPlanYears;
+      const cash = calc.expenses.cash;
+      document.getElementById("fridayCashTotal").textContent = formatMoney(cash.totalDue);
+      const cashNote = document.getElementById("fridayCashNote");
+      cashNote.textContent = cash.text;
+      cashNote.className = "status-pill " + (cash.kind === "shortfall" ? "status-danger" : "status-success");
       document.getElementById("pageSummaryText").textContent =
         `Interactive Friday-to-Thursday (${STATE.baseFriday} to ${calc.windowEndISO}) bill accumulation, ${STATE.ccPlanYears}-year credit card payoff calculator, and NY paycheck planner saved in your private cloud database.`;
 
-      const billsMoSum = dueBills.reduce((s, x) => s + x.budgetMonthly, 0);
+      const dueRecurring = dueBills.filter(b => b.inputMode !== "One_Time");
+      const dueOnce = dueBills.filter(b => b.inputMode === "One_Time");
+      const billsMoSum = dueRecurring.reduce((s, x) => s + x.budgetMonthly, 0);
+      const onceSum = dueOnce.reduce((s, x) => s + x.fridayAmount, 0);
       const cardsWkSum = dueCards.reduce((s, x) => s + x.effWk, 0);
+      const onceBit = dueOnce.length ? ` + ${dueOnce.length} one-time (${fmtMoney(onceSum)})` : "";
       document.getElementById("metricsContainer").innerHTML = `
         <div class="metric-card warning">
           <div class="metric-label">Due This Week (${STATE.baseFriday} to ${calc.windowEndISO})</div>
           <div class="metric-value">${dueBills.length + dueCards.length} Items</div>
-          <div class="metric-detail">${dueBills.length} bills (${fmtMoney(billsMoSum)}/mo) + ${dueCards.length} cards (${fmtMoney(cardsWkSum)}/wk)</div>
+          <div class="metric-detail">${dueRecurring.length} bills (${fmtMoney(billsMoSum)}/mo)${onceBit} + ${dueCards.length} cards (${fmtMoney(cardsWkSum)}/wk)</div>
         </div>
-        <div class="metric-card ${calc.expenses.balanceDiffO11 >= 0 ? 'success' : 'danger'}">
+        <div class="metric-card ${cash.kind === "shortfall" ? "danger" : "success"}">
           <div class="metric-label">Total Saved Needed by Friday (2025N!I32)</div>
           <div class="metric-value">${fmtMoney(calc.expenses.fridaySavedI32)}</div>
-          <div class="metric-detail" id="availFormula">Available ${fmtMoney(calc.expenses.totalAvailable)} − Due before next Friday ${fmtMoney(calc.expenses.fridaySavedI32)} = Left after paying: ${fmtMoney(calc.expenses.balanceDiffO11)}</div>
+          <div class="metric-detail" id="availFormula">Available ${formatMoney(cash.available)} − Total due ${formatMoney(cash.totalDue)} = ${cash.text}</div>
         </div>
         <div class="metric-card ${calc.expenses.weeklyBufferVsNet >= 0 ? 'success' : 'danger'}">
           <div class="metric-label">Weekly Set-Aside (2025N!E32)</div>
@@ -617,7 +674,7 @@
       document.getElementById("dueSectionHeading").textContent =
         `Yellow-Highlighted Payments Due This Week (Fri ${STATE.baseFriday} – Thu ${calc.windowEndISO})`;
 
-      const billsText = dueBills.map(b => `${b.name} (${b.nextDueISO}: ${fmtMoney(b.budgetMonthly)})`).join(", ") || "None";
+      const billsText = dueBills.map(b => `${b.name} (${b.nextDueISO}: ${fmtMoney(b.inputMode === "One_Time" ? b.fridayAmount : b.budgetMonthly)}${b.inputMode === "One_Time" ? " one-time" : ""})`).join(", ") || "None";
       const cardsText = dueCards.map(c => `${c.name} (${c.nextDueISO}: ${fmtMoney(c.effWk)}/wk)`).join(", ") || "None";
 
       document.getElementById("dueThisWeekContainer").innerHTML = `
@@ -643,8 +700,8 @@
                   <tr class="row-yellow">
                     <td class="hl-text">${b.name}</td>
                     <td class="num hl-text">${b.nextDueISO}</td>
-                    <td class="num">${fmtMoney(b.budgetMonthly)}</td>
-                    <td class="num hl-text">${fmtMoney(b.savedTotal)}</td>
+                    <td class="num">${fmtMoney(b.inputMode === "One_Time" ? b.fridayAmount : b.budgetMonthly)}</td>
+                    <td class="num hl-text">${fmtMoney(b.inputMode === "One_Time" ? b.fridayAmount : b.savedTotal)}</td>
                     <td>${b.paymentFrom}</td>
                     <td>
                       <span class="status-pill status-warning">DUE THIS WEEK</span>
@@ -703,18 +760,18 @@
       if (STATE.activeTab === "friday") {
         let filtered = calc.expenses.rows;
         if (STATE.expenseFilter === "due") filtered = filtered.filter(r => r.isDueThisWeek);
-        else if (STATE.expenseFilter === "weekly0") filtered = filtered.filter(r => r.dueDay === 0);
-        else if (STATE.expenseFilter === "monthly") filtered = filtered.filter(r => r.dueDay > 0);
+        else if (STATE.expenseFilter === "weekly0") filtered = filtered.filter(r => r.inputMode !== "One_Time" && r.dueDay === 0);
+        else if (STATE.expenseFilter === "monthly") filtered = filtered.filter(r => r.inputMode !== "One_Time" && r.dueDay > 0);
 
         wsBody.innerHTML = `
           <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:12px; margin-bottom:14px;">
             <div class="segmented">
               <button class="seg-btn ${STATE.expenseFilter === 'all' ? 'active' : ''}" onclick="setExpFilter('all')">All Expenses <span class="seg-count">${calc.expenses.rows.length}</span></button>
               <button class="seg-btn ${STATE.expenseFilter === 'due' ? 'active' : ''}" onclick="setExpFilter('due')">Due This Week (Yellow) <span class="seg-count">${dueBills.length}</span></button>
-              <button class="seg-btn ${STATE.expenseFilter === 'weekly0' ? 'active' : ''}" onclick="setExpFilter('weekly0')">Weekly (Day 0) <span class="seg-count">${calc.expenses.rows.filter(x => x.dueDay === 0).length}</span></button>
-              <button class="seg-btn ${STATE.expenseFilter === 'monthly' ? 'active' : ''}" onclick="setExpFilter('monthly')">Monthly Bills (Day 1–31) <span class="seg-count">${calc.expenses.rows.filter(x => x.dueDay > 0).length}</span></button>
+              <button class="seg-btn ${STATE.expenseFilter === 'weekly0' ? 'active' : ''}" onclick="setExpFilter('weekly0')">Weekly (Day 0) <span class="seg-count">${calc.expenses.rows.filter(x => x.inputMode !== "One_Time" && x.dueDay === 0).length}</span></button>
+              <button class="seg-btn ${STATE.expenseFilter === 'monthly' ? 'active' : ''}" onclick="setExpFilter('monthly')">Monthly Bills (Day 1–31) <span class="seg-count">${calc.expenses.rows.filter(x => x.inputMode !== "One_Time" && x.dueDay > 0).length}</span></button>
             </div>
-            <div style="font-size:12.5px; color:var(--text-secondary);">Switch any row between Weekly and Monthly input mode, or edit Amount, Due Day, or Add ($). Yellow rows are due Fri–Thu.</div>
+            <div style="font-size:12.5px; color:var(--text-secondary);">Switch any row between Weekly, Monthly, and One-time, or edit Amount, Due Day, payment date, or Add ($). A one-time amount counts only on its Friday. Yellow rows are due Fri–Thu.</div>
           </div>
           <div class="table-wrap">
             <table>
@@ -746,6 +803,7 @@
                         <select class="cell-select" onchange="updateExpenseField(${row.id}, 'inputMode', this.value)">
                           <option value="Weekly" ${row.inputMode === 'Weekly' ? 'selected' : ''}>Weekly</option>
                           <option value="Monthly" ${row.inputMode === 'Monthly' ? 'selected' : ''}>Monthly</option>
+                          <option value="One_Time" ${row.inputMode === 'One_Time' ? 'selected' : ''}>One-time</option>
                         </select>
                       `}
                     </td>
@@ -755,13 +813,15 @@
                       `}
                     </td>
                     <td class="num" style="color:var(--text-secondary);">${fmtMoney(row.budgetMonthly)}</td>
-                    <td class="num">${row.cycleFridays}</td>
+                    <td class="num">${row.inputMode === "One_Time" ? "—" : row.cycleFridays}</td>
                     <td class="num" style="font-weight:600;">${fmtMoney(row.cycleWeekly)}</td>
                     <td class="num">
-                      <input type="number" min="0" max="31" class="cell-input" style="width:54px;" value="${row.dueDay}" onchange="updateExpenseField(${row.id}, 'dueDay', this.value)" />
+                      ${row.inputMode === "One_Time"
+                        ? `<input type="date" class="cell-input" style="width:148px;" value="${isoDate(row.oneTimeDate)}" onchange="updateExpenseField(${row.id}, 'oneTimeDate', this.value)" />`
+                        : `<input type="number" min="0" max="31" class="cell-input" style="width:54px;" value="${row.dueDay}" onchange="updateExpenseField(${row.id}, 'dueDay', this.value)" />`}
                     </td>
-                    <td class="num hl-text">${row.nextDueISO}</td>
-                    <td class="num">${row.passedFridays}</td>
+                    <td class="num hl-text">${row.nextDueISO || "—"}</td>
+                    <td class="num">${row.inputMode === "One_Time" ? "—" : row.passedFridays}</td>
                     <td class="num">
                       <input type="number" step="1" class="cell-input" style="width:64px;" value="${row.manualAdd}" onchange="updateExpenseField(${row.id}, 'manualAdd', this.value)" />
                     </td>
@@ -777,7 +837,9 @@
                     </td>
                     <td>
                       <div style="display:flex; gap:6px; align-items:center;">
-                        ${row.isDueThisWeek ? `<span class="status-pill status-warning">DUE FRI–THU</span>` : (row.dueDay === 0 ? `<span class="status-pill status-neutral">Weekly</span>` : `<span class="status-pill status-success">${row.passedFridays}/${row.cycleFridays} Wks</span>`)}
+                        ${row.inputMode === "One_Time"
+                          ? `<span class="status-pill ${row.oneTimeStatus === "Paid" ? "status-neutral" : "status-accent"}">${row.oneTimeStatus === "Paid" ? "Paid" : "Upcoming"}</span> <span class="status-pill status-neutral">${fmtMoney(row.fridayAmount)} this Friday</span>`
+                          : (row.isDueThisWeek ? `<span class="status-pill status-warning">DUE FRI–THU</span>` : (row.dueDay === 0 ? `<span class="status-pill status-neutral">Weekly</span>` : `<span class="status-pill status-success">${row.passedFridays}/${row.cycleFridays} Wks</span>`))}
                         ${row.inputMode !== "CC_Link" ? `<button class="btn btn-sm" onclick="removeExpense(${row.id})">Remove</button>` : ''}
                       </div>
                     </td>
@@ -799,8 +861,8 @@
                   <td class="num">${fmtMoney(calc.expenses.fridaySavedI32)}</td>
                   <td>—</td>
                   <td>
-                    <span class="status-pill ${calc.expenses.balanceDiffO11 >= 0 ? 'status-success' : 'status-danger'}">
-                      Left after paying: ${fmtMoney(calc.expenses.balanceDiffO11)}
+                    <span class="status-pill ${cash.kind === "shortfall" ? "status-danger" : "status-success"}">
+                      ${cash.text}
                     </span>
                   </td>
                 </tr>
@@ -809,9 +871,10 @@
           </div>
           <div class="control-bar">
             <div class="field"><label>New Expense Name</label><input type="text" id="newExpName" placeholder="e.g. Lawn / EZ-Pass" /></div>
-            <div class="field"><label>Input Mode</label><select id="newExpMode"><option value="Monthly">Monthly ($)</option><option value="Weekly">Weekly ($)</option></select></div>
+            <div class="field"><label>Input Mode</label><select id="newExpMode" onchange="toggleNewExpMode(this.value)"><option value="Monthly">Monthly ($)</option><option value="Weekly">Weekly ($)</option><option value="One_Time">One-time ($)</option></select></div>
             <div class="field"><label>Amount ($)</label><input type="number" step="0.01" id="newExpAmt" placeholder="50.00" style="width:100px;" /></div>
-            <div class="field"><label>Due Day (0=Weekly, 1–31)</label><input type="number" min="0" max="31" id="newExpDay" value="15" style="width:90px;" /></div>
+            <div class="field" id="newExpDayWrap"><label>Due Day (0=Weekly, 1–31)</label><input type="number" min="0" max="31" id="newExpDay" value="15" style="width:90px;" /></div>
+            <div class="field" id="newExpDateWrap" style="display:none"><label>Payment date</label><input type="date" id="newExpDate" /></div>
             <div class="field"><label>Paid From</label><input type="text" id="newExpFrom" value="M&T DC" style="width:100px;" /></div>
             <div class="field"><label>Payment URL (www)</label><input type="text" id="newExpUrl" value="https://" style="width:180px;" /></div>
             <button class="btn btn-primary" onclick="addExpense()">+ Add Expense</button>

@@ -348,12 +348,14 @@ test("Friday, weekly, monthly, and dashboard code do not query yearly subscripti
 test("syntax check", () => {
   for (const file of [
     "js/yearly-subscriptions.js",
+    "js/one-time-expense.js",
     "js/manage.js",
     "js/budget-data.js",
     "js/supa.js",
     "js/login.js",
     "config.js",
     "tests/yearly-subscriptions.test.js",
+    "tests/one-time-expense.test.js",
   ]) {
     execFileSync(process.execPath, ["--check", path.join(root, file)], { stdio: "pipe" });
   }
