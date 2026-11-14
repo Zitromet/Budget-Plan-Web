@@ -6,10 +6,11 @@
 // =====================================================================
 const T = {
   expenses: { table: "budget_expenses", title: "Bills & Expenses", order: ["sort_order", "id"],
-    help: "Due Day 0 = set aside every Friday. Mode CC_Link = uses the credit-card total. Set Active = No to hide a bill without deleting it.",
+    help: "Due Day 0 = set aside every Friday. Mode CC_Link = uses the credit-card total. Mode One_Time = one payment on Payment date, counted only on that Friday. Set Active = No to hide a bill without deleting it.",
     cols: [
-      ["name", "Name", "text", { req: 1 }], ["input_mode", "Mode", "select", { opts: ["Weekly", "Monthly", "CC_Link"] }],
+      ["name", "Name", "text", { req: 1 }], ["input_mode", "Mode", "select", { opts: ["Weekly", "Monthly", "CC_Link", "One_Time"] }],
       ["input_amount", "Amount ($)", "money"], ["due_day", "Due day (0-31)", "int", { min: 0, max: 31 }],
+      ["one_time_date", "Payment date", "date"],
       ["payment_from", "Paid from", "text", { def: "M&T DC" }], ["manual_add", "Manual add ($)", "money"],
       ["payoff_date", "Payoff date", "date"], ["payments_left_override", "Payments left (override)", "number", { list: 0 }],
       ["url", "Website", "url", { list: 0 }], ["notes", "Notes", "textarea", { list: 0 }],
@@ -168,6 +169,13 @@ function openForm(row) {
     ev.preventDefault();
     try {
       const data = readForm();
+      if (TAB === "expenses" && data.input_mode === "One_Time") {
+        const message = oneTimeError({ mode: "One_Time", amount: data.input_amount, date: data.one_time_date });
+        if (message) { alert(message); return; }
+      } else if (TAB === "expenses" && !data.one_time_date) {
+        // Leave the new column out until a one-time date is actually set.
+        delete data.one_time_date;
+      }
       if (row) check(await sb.from(t.table).update(data).eq(keyOf(), row[keyOf()]), "Saving");
       else check(await sb.from(t.table).insert(data), "Adding");
       dlg.close(); await load();

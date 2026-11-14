@@ -31,11 +31,16 @@ const num = (v, d = 0) => (v === null || v === undefined || v === "" || isNaN(Nu
 // ---------- rows <-> STATE items ----------
 const expFromRow = r => ({ id: r.id, name: r.name, inputMode: r.input_mode, inputAmount: num(r.input_amount),
   dueDay: r.due_day, manualAdd: num(r.manual_add), paymentFrom: r.payment_from || "M&T DC",
-  payoffDate: r.payoff_date || "", url: r.url || "", notes: r.notes || "" });
-const expToRow = (e, i) => ({ name: String(e.name || `Item ${i + 1}`), input_mode: e.inputMode || "Monthly",
-  input_amount: num(e.inputAmount), due_day: Math.min(31, Math.max(0, parseInt(e.dueDay, 10) || 0)),
-  manual_add: num(e.manualAdd), payment_from: e.paymentFrom || "M&T DC", payoff_date: e.payoffDate || null,
-  url: e.url || "", notes: e.notes || "", active: true, sort_order: i + 1 });
+  payoffDate: r.payoff_date || "", url: r.url || "", notes: r.notes || "", oneTimeDate: r.one_time_date || "" });
+const expToRow = (e, i) => {
+  const row = { name: String(e.name || `Item ${i + 1}`), input_mode: e.inputMode || "Monthly",
+    input_amount: num(e.inputAmount), due_day: Math.min(31, Math.max(0, parseInt(e.dueDay, 10) || 0)),
+    manual_add: num(e.manualAdd), payment_from: e.paymentFrom || "M&T DC", payoff_date: e.payoffDate || null,
+    url: e.url || "", notes: e.notes || "", active: true, sort_order: i + 1 };
+  // Only one-time rows write the new column, so other saves stay valid before that column exists.
+  if (e.inputMode === "One_Time" || e.oneTimeDate) row.one_time_date = e.oneTimeDate || null;
+  return row;
+};
 const cardFromRow = r => ({ id: r.id, name: r.name, balance: num(r.balance),
   aprPct: Math.round(num(r.apr) * 100 * 10000) / 10000,
   otherWeekly: r.other_weekly === null ? null : num(r.other_weekly), dueDay: r.due_day, url: r.url || "", notes: r.notes || "" });
